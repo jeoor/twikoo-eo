@@ -1,12 +1,15 @@
 /*!
  * Twikoo EdgeOne Pages Edge Function - KV 数据库操作层
- * (c) 2025-present Mntimate
+ * (c) 2025-present Mintimate
  * Released under the MIT License.
  * 
  * 使用 EdgeOne Pages KV 存储作为数据库
  * KV 命名空间需要在 EdgeOne Pages 控制台绑定，变量名：TWIKOO_KV
  * 
- * 此 Edge Function 仅负责 KV 数据库操作，主要逻辑在 Node Function 中实现
+ * 存储结构：
+ * - comments:all    - 所有评论的 JSON 数组（单次读取，减少 KV 调用）
+ * - config:main     - 系统配置
+ * - counter:{url}   - 页面访问计数
  */
 
 const VERSION = '1.6.44'
@@ -18,13 +21,14 @@ const RES_CODE = {
   FORBIDDEN: 1403
 }
 
+// 评论存储的 KV 键名
+const COMMENTS_KEY = 'comments:all'
+
 /**
  * EdgeOne Pages Edge Function 入口
  */
 export async function onRequest(context) {
   const { request } = context
-  
-  console.log('KV API 收到请求，method:', request.method)
   
   // 处理 CORS 预检请求
   if (request.method === 'OPTIONS') {
@@ -56,8 +60,6 @@ export async function onRequest(context) {
 
     const body = await request.json()
     const { action, data } = body
-    
-    console.log('KV 操作：', action)
     
     // 创建数据库操作对象
     const db = createKVDatabase()
@@ -134,62 +136,108 @@ function generateUUID() {
   })
 }
 
-// ==================== KV 数据库操作层 ====================
+// ==================== KV 数据库操作层（优化版） ====================
 
 function createKVDatabase() {
   if (typeof TWIKOO_KV === 'undefined') {
     throw new Error('未配置 TWIKOO_KV 命名空间，请在 EdgeOne Pages 控制台绑定 KV 存储')
   }
   
+  // 评论缓存（减少重复读取）
+  let commentsCache = null
+  
   return {
+    // 获取所有评论（单次 KV 读取）
+    async getAllComments() {
+      if (commentsCache !== null) {
+        return commentsCache
+      }
+      const data = await TWIKOO_KV.get(COMMENTS_KEY)
+      commentsCache = data ? JSON.parse(data) : []
+      return commentsCache
+    },
+    
+    // 保存所有评论
+    async saveAllComments(comments) {
+      commentsCache = comments
+      await TWIKOO_KV.put(COMMENTS_KEY, JSON.stringify(comments))
+    },
+    
+    // 查询评论（支持过滤条件）
     async getComments(query = {}) {
-      const allComments = await this.getAllFromCollection('comment')
+      const allComments = await this.getAllComments()
       return filterComments(allComments, query)
     },
     
+    // 添加评论
     async addComment(comment) {
       const id = comment._id || generateUUID()
       comment._id = id
-      await TWIKOO_KV.put(`comment:${id}`, JSON.stringify(comment))
-      await this.addToIndex('comment', id)
+      comment.id = id // 兼容性
+      
+      const comments = await this.getAllComments()
+      comments.push(comment)
+      await this.saveAllComments(comments)
+      
       return { id }
     },
     
+    // 更新评论
     async updateComment(id, updates) {
-      const comment = await this.getComment(id)
-      if (comment) {
-        Object.assign(comment, updates)
-        await TWIKOO_KV.put(`comment:${id}`, JSON.stringify(comment))
+      const comments = await this.getAllComments()
+      const index = comments.findIndex(c => c._id === id)
+      
+      if (index !== -1) {
+        Object.assign(comments[index], updates)
+        await this.saveAllComments(comments)
         return { updated: 1 }
       }
       return { updated: 0 }
     },
     
+    // 删除评论
     async deleteComment(id) {
-      await TWIKOO_KV.delete(`comment:${id}`)
-      await this.removeFromIndex('comment', id)
-      return { deleted: 1 }
+      const comments = await this.getAllComments()
+      const index = comments.findIndex(c => c._id === id)
+      
+      if (index !== -1) {
+        comments.splice(index, 1)
+        await this.saveAllComments(comments)
+        return { deleted: 1 }
+      }
+      return { deleted: 0 }
     },
     
+    // 获取单条评论
     async getComment(id) {
-      const data = await TWIKOO_KV.get(`comment:${id}`)
-      return data ? JSON.parse(data) : null
+      const comments = await this.getAllComments()
+      return comments.find(c => c._id === id) || null
     },
     
-    async bulkAddComments(comments) {
+    // 批量添加评论
+    async bulkAddComments(newComments) {
+      const comments = await this.getAllComments()
       let insertedCount = 0
-      for (const comment of comments) {
-        await this.addComment(comment)
+      
+      for (const comment of newComments) {
+        const id = comment._id || generateUUID()
+        comment._id = id
+        comment.id = id
+        comments.push(comment)
         insertedCount++
       }
+      
+      await this.saveAllComments(comments)
       return insertedCount
     },
     
+    // 获取配置
     async getConfig() {
       const data = await TWIKOO_KV.get('config:main')
       return data ? JSON.parse(data) : {}
     },
     
+    // 保存配置
     async saveConfig(newConfig) {
       const currentConfig = await this.getConfig()
       const merged = { ...currentConfig, ...newConfig }
@@ -197,15 +245,18 @@ function createKVDatabase() {
       return { updated: 1 }
     },
     
+    // 获取计数器
     async getCounter(url) {
       const key = `counter:${encodeURIComponent(url)}`
       const data = await TWIKOO_KV.get(key)
       return data ? JSON.parse(data) : null
     },
     
+    // 增加计数器
     async incCounter(url, title) {
       const key = `counter:${encodeURIComponent(url)}`
       let counter = await this.getCounter(url)
+      
       if (counter) {
         counter.time = (counter.time || 0) + 1
         counter.title = title
@@ -219,46 +270,15 @@ function createKVDatabase() {
           updated: Date.now()
         }
       }
+      
       await TWIKOO_KV.put(key, JSON.stringify(counter))
       return 1
-    },
-    
-    async getAllFromCollection(collection) {
-      const indexKey = `index:${collection}`
-      const indexData = await TWIKOO_KV.get(indexKey)
-      const ids = indexData ? JSON.parse(indexData) : []
-      
-      const items = []
-      for (const id of ids) {
-        const data = await TWIKOO_KV.get(`${collection}:${id}`)
-        if (data) {
-          items.push(JSON.parse(data))
-        }
-      }
-      return items
-    },
-    
-    async addToIndex(collection, id) {
-      const indexKey = `index:${collection}`
-      const indexData = await TWIKOO_KV.get(indexKey)
-      const ids = indexData ? JSON.parse(indexData) : []
-      if (!ids.includes(id)) {
-        ids.push(id)
-        await TWIKOO_KV.put(indexKey, JSON.stringify(ids))
-      }
-    },
-    
-    async removeFromIndex(collection, id) {
-      const indexKey = `index:${collection}`
-      const indexData = await TWIKOO_KV.get(indexKey)
-      const ids = indexData ? JSON.parse(indexData) : []
-      const newIds = ids.filter(i => i !== id)
-      await TWIKOO_KV.put(indexKey, JSON.stringify(newIds))
     }
   }
 }
 
-// 评论过滤函数
+// ==================== 评论过滤函数 ====================
+
 function filterComments(comments, query) {
   if (!Object.keys(query).length) return comments
   
@@ -292,7 +312,9 @@ function matchCondition(comment, key, value) {
       return commentValue !== value.$ne
     }
     if ('$exists' in value) {
-      return value.$exists ? (commentValue !== undefined && commentValue !== null && commentValue !== '') : (commentValue === undefined || commentValue === null || commentValue === '')
+      return value.$exists 
+        ? (commentValue !== undefined && commentValue !== null && commentValue !== '') 
+        : (commentValue === undefined || commentValue === null || commentValue === '')
     }
     if ('$gt' in value) {
       return commentValue > value.$gt
