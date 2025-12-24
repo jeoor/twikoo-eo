@@ -5,7 +5,7 @@
   "author": "imaegoo <hello@imaegoo.com> (https://github.com/imaegoo)",
   "license": "MIT",
   "type": "module",
-  "main": "edge-functions/index.js",
+  "main": "node-functions/index.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/twikoojs/twikoo.git"
@@ -16,13 +16,9 @@
     "build": "node build.cjs"
   },
   "dependencies": {
-    "akismet-api": "^6.0.0",
-    "axios": "^1.13.2",
-    "blueimp-md5": "^2.19.0",
-    "crypto-js": "^4.2.0",
-    "nodemailer": "^7.0.12",
-    "pushoo": "^0.1.11",
-    "uuid": "^8.3.2"
+    "twikoo-func": "^1.6.44",
+    "uuid": "^8.3.2",
+    "xss": "^1.0.15"
   },
   "devDependencies": {
     "esbuild": "^0.27.2"

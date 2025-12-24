@@ -91,8 +91,8 @@ Twikoo 的完整教程，参考 Twikoo 官方项目: https://github.com/twikoojs
 
 当前测试以下功能正常:
 - 评论提交、评论回复、评论点赞、评论删除等前台评论操作。
-- 邮件通知、Push 提醒正常。
-- IP 获取、归属地正常（使用 EdgeOne Function 提供的地址库）。
+- 邮件通知（支持 SendGrid 和 MailChannels）。
+- IP 获取正常（使用 EdgeOne 提供的 `eo-connecting-ip`）。
 - UA 获取、浏览器类型正常。
 
 KV 存储的评论:
@@ -119,18 +119,23 @@ node build.cjs
 **项目结构说明：**
 ```
 ├── edge-functions/
-│   └── index.js          # Edge Function 主入口（处理 KV 存储）
-├── node-functions/
 │   └── api/
-│       └── notify.js      # Node Function 通知服务（处理邮件）
+│       └── kv.js          # Edge Function KV 数据库操作层
+├── node-functions/
+│   └── index.js           # Node Function 主入口（处理评论逻辑）
 ├── package.json           # 项目依赖配置
 ├── build.cjs              # 构建检查脚本
 └── .cnb.yml               # CNB 环境配置（可选）
 ```
 
+**架构说明：**
+- **Edge Function (`edge-functions/api/kv.js`)**: 运行在边缘节点，负责 KV 数据库的读写操作
+- **Node Function (`node-functions/index.js`)**: 运行在 Node.js 环境，处理评论业务逻辑、邮件通知等
+- Node Function 通过内部 HTTP 调用 Edge Function 的 KV API
+
 **开发注意事项：**
 - Edge Functions 使用 KV 存储作为数据库
-- Node Functions 用于处理邮件通知等需要第三方服务的功能
+- Node Functions 用于处理评论逻辑和邮件通知
 - 环境变量在 EdgeOne Pages 控制台配置
 - 本地开发时需要模拟 KV 环境
 
