@@ -16,6 +16,7 @@ import {
   setCustomLibs
 } from 'twikoo-func/utils/lib'
 import { getIpRegion } from './ip2region-searcher.js'
+import { logRequest, logEvent, logResponse, logError, logger } from './logger.js'
 import {
   getFuncVersion,
   getUrlQuery,
@@ -45,7 +46,6 @@ import {
 import { postCheckSpam } from 'twikoo-func/utils/spam'
 import { sendNotice, emailTest } from 'twikoo-func/utils/notify'
 import { uploadImage } from 'twikoo-func/utils/image'
-import logger from 'twikoo-func/utils/logger'
 import constants from 'twikoo-func/utils/constants'
 
 const { RES_CODE, MAX_REQUEST_TIMES } = constants
@@ -885,12 +885,15 @@ async function getRecentComments(event, db) {
 // EdgeOne Pages Node Function 入口
 export async function onRequest(context) {
   const { request } = context
+  const url = new URL(request.url)
+  const method = request.method
+  
+  // 请求日志
+  logRequest(method, url.pathname, url.search)
   
   // 将 EdgeOne 请求转换为 Express 可处理的格式
   return new Promise(async (resolve) => {
     try {
-      const url = new URL(request.url)
-      const method = request.method
       
       // 构造模拟的 req 对象
       const headers = {}
@@ -946,8 +949,6 @@ export async function onRequest(context) {
         }))
       }
       
-      // 手动处理路由
-      console.log(`[${new Date().toISOString()}] ${method} ${url.pathname}`)
       
       // CORS 处理
       const origin = headers.origin
@@ -981,7 +982,7 @@ export async function onRequest(context) {
       
       res.status(404).json({ code: 404, message: 'Not Found' })
     } catch (e) {
-      console.error('onRequest error:', e)
+      logError('onRequest', e)
       resolve(new Response(JSON.stringify({ code: 500, message: e.message }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
@@ -996,9 +997,14 @@ async function handlePost(req, res) {
   const event = req.body || {}
   const ip = getIp(req)
   
-  logger.log('请求 IP：', ip)
-  logger.log('请求函数：', event.event)
-  logger.log('请求参数：', event)
+  // 记录事件日志
+  logEvent(event.event, ip, {
+    url: event.url,
+    nick: event.nick,
+    id: event.id,
+    page: event.page,
+    per: event.per
+  })
   
   let result = {}
   
@@ -1096,6 +1102,6 @@ async function handlePost(req, res) {
     result.message = e.message
   }
   
-  logger.log('请求返回：', result)
+  logResponse(event.event, result.code, { count: result.count })
   res.json(result)
 }
