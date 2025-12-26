@@ -48,7 +48,7 @@ import { sendNotice, emailTest } from 'twikoo-func/utils/notify'
 import { uploadImage } from 'twikoo-func/utils/image'
 import constants from 'twikoo-func/utils/constants'
 
-const { RES_CODE, MAX_REQUEST_TIMES } = constants
+const { RES_CODE } = constants
 const VERSION = '1.6.44'
 
 // 注入自定义依赖（对标 Cloudflare 版本）
@@ -223,28 +223,8 @@ function parseCommentForAdmin(comments) {
 
 // 全局变量
 let config = null
-const requestTimes = {}
-
-
 
 // ==================== 工具函数 ====================
-
-function getAllowedOrigin(req) {
-  const origin = req.headers.origin
-  const localhostRegex = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d{1,5})?$/
-  if (localhostRegex.test(origin)) {
-    return origin
-  } else if (config && config.CORS_ALLOW_ORIGIN) {
-    const corsList = config.CORS_ALLOW_ORIGIN.split(',')
-    for (const cors of corsList) {
-      if (cors.replace(/\/$/, '') === origin) {
-        return origin
-      }
-    }
-    return ''
-  }
-  return origin
-}
 
 // 获取 IP（优先使用 EdgeOne 提供的 eo-connecting-ip）
 function getIp(req) {
@@ -254,20 +234,6 @@ function getIp(req) {
          req.ip ||
          'unknown'
 }
-
-function protect(ip) {
-  requestTimes[ip] = (requestTimes[ip] || 0) + 1
-  if (requestTimes[ip] > MAX_REQUEST_TIMES) {
-    logger.warn(`${ip} 当前请求次数为 ${requestTimes[ip]}，已超过最大请求次数`)
-    throw new Error('Too Many Requests')
-  }
-  logger.log(`${ip} 当前请求次数为 ${requestTimes[ip]}`)
-}
-
-// 定期清理请求计数
-setInterval(() => {
-  Object.keys(requestTimes).forEach(key => delete requestTimes[key])
-}, 10 * 60 * 1000)
 
 // ==================== KV 代理层 ====================
 
@@ -1009,9 +975,6 @@ async function handlePost(req, res) {
   let result = {}
   
   try {
-    // 防护
-    protect(ip)
-    
     // 生成或使用 accessToken
     accessToken = event.accessToken || uuidv4().replace(/-/g, '')
     
