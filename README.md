@@ -19,14 +19,25 @@
 
 ## 快速上手 | Quick Start
 
+### 一键部署 | One-Click Deploy
+
+您可以通过 [腾讯云 EdgeOne Pages](https://pages.edgeone.ai/zh) 一键部署。
+
+直接点击此按钮一键部署：
+
+[![使用 EdgeOne Pages 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/pages/new?repository-url=https%3A%2F%2Fgithub.com%2FMintimate%2Ftwikoo-eo)
+
+查看 [腾讯云 EdgeOne Pages 文档](https://pages.edgeone.ai/zh/document/product-introduction) 了解更多详情。
+
+需要注意，你还是需要新建一个 KV，并且绑定到项目中:
+
+![设置的 KV](./docs/static/eoKvSetting.png)
+
+### 完整教程 | Full Tutorial
+
 Twikoo 的完整教程，参考 Twikoo 官方项目: https://github.com/twikoojs/twikoo 以及 Twikoo 的[快速上手](https://twikoo.js.org/quick-start.html)
 
-1. 登录 [EdgeOne Pages 控制台](https://console.cloud.tencent.com/edgeone/pages)
-2. 创建新项目，关联本仓库（或 Fork 后关联）
-
-### EdgeOne Pages 部署 | EdgeOne Pages Deployment
-
-本项目已适配腾讯云 EdgeOne Pages 平台，提供简化的部署方案。
+手动部署到 EdgeOne Pages 的方法如下： 
 
 #### 部署步骤 | Deployment Steps
 
