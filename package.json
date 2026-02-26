@@ -21,8 +21,8 @@
   },
   "homepage": "https://twikoo.js.org",
   "scripts": {
-    "dev": "webpack serve --mode development",
-    "serve": "webpack serve --mode development",
+    "dev": "node build.cjs",
+    "serve": "node build.cjs",
     "build": "node build.cjs",
     "analyze": "webpack --profile --json > stats.json && webpack-bundle-analyzer stats.json",
     "login": "tcb login",
@@ -31,6 +31,13 @@
     "lint": "eslint src/** --ignore-path .eslintignore",
     "docs:dev": "cd docs && yarn docs:dev",
     "docs:build": "cd docs && yarn docs:build"
+  },
+  "dependencies": {
+    "bowser": "^2.14.1",
+    "pako": "^2.1.0",
+    "twikoo-func": "^1.6.45",
+    "uuid": "^13.0.0",
+    "xss": "^1.0.15"
   },
   "devDependencies": {
     "@babel/cli": "^7.16.0",
