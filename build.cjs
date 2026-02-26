@@ -22,12 +22,12 @@ const ip2regionOutputPath = path.join(srcDir, 'node-functions/ip2region-data.js'
 if (fs.existsSync(ip2regionDbPath)) {
   const dbBuffer = fs.readFileSync(ip2regionDbPath)
   console.log(`  原始大小: ${(dbBuffer.length / 1024 / 1024).toFixed(2)} MB`)
-  
+
   const compressed = zlib.gzipSync(dbBuffer, { level: 9 })
   console.log(`  压缩后大小: ${(compressed.length / 1024 / 1024).toFixed(2)} MB`)
-  
+
   const base64 = compressed.toString('base64')
-  
+
   const jsContent = `/**
  * ip2region.db 数据（gzip 压缩 + Base64 编码）
  * 自动生成，请勿手动修改
@@ -56,12 +56,27 @@ export function getIp2RegionBuffer() {
 
 export default getIp2RegionBuffer
 `
-  
+
   fs.writeFileSync(ip2regionOutputPath, jsContent)
   console.log(`  ✓ 已生成: node-functions/ip2region-data.js (${(fs.statSync(ip2regionOutputPath).size / 1024 / 1024).toFixed(2)} MB)`)
 } else {
   console.log(`  ✗ ip2region.db 不存在，跳过生成`)
   console.log(`    请先运行: npm install @imaegoo/node-ip2region`)
+
+  if (!fs.existsSync(ip2regionOutputPath)) {
+    const fallbackContent = `/**
+ * ip2region 数据不可用时的降级实现
+ * 自动生成，请勿手动修改
+ */
+export function getIp2RegionBuffer() {
+  throw new Error('ip2region data unavailable')
+}
+
+export default getIp2RegionBuffer
+`
+    fs.writeFileSync(ip2regionOutputPath, fallbackContent)
+    console.log('  ✓ 已生成降级文件: node-functions/ip2region-data.js')
+  }
 }
 console.log('')
 
